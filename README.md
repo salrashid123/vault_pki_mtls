@@ -45,6 +45,12 @@ If you're still interested in using Vault for a TLS server for any reason...
     }
 ```
 
+```
+$ vault server -config=server.conf 
+(vault operator init)
+$ vault  operator unseal
+```
+
 2. Use `RootToken` to enable the pki backend
 
 ```bash
