@@ -36,14 +36,15 @@ func main() {
 	clientCaCertPool.AppendCertsFromPEM(clientCaCert)
 
 	r, err := sal.NewVaultCrypto(&sal.Vault{
-
-		CertCN:      "grpc.domain.com",
-		VaultToken:  "s.IumzeFZVsWqYcJ2IjlGaqZby",
+		CertCN:      "server.domain.com",
+		VaultToken:  "s.pljYb4ty5AomX6hnzjqrTXiG",
 		VaultPath:   "pki/issue/domain-dot-com",
 		VaultCAcert: "CA_crt.pem",
-		VaultAddr:   "https://grpc.domain.com:8200",
-		ClientCAs:   clientCaCertPool,
-		ClientAuth:  tls.RequireAndVerifyClientCert,
+		VaultAddr:   "https://vault.domain.com:8200",
+		ExtTLSConfig: &tls.Config{
+			ClientCAs:   clientCaCertPool,
+			ClientAuth:  tls.RequireAndVerifyClientCert,
+		},
 	})
 	if err != nil {
 		fmt.Printf("Unable to initialize vault crypto: %v", err)

@@ -33,21 +33,27 @@ If you're still interested in using Vault for a TLS server for any reason...
 
 ```hcl
     backend "file" {
-      path = "/path/to/filebackend"
+      path = "filebackend"
     }
 
     ui = true
 
     listener "tcp" {
       address = "127.0.0.1:8200"
-      tls_cert_file = "/path/to/crt_vault.pem"
-      tls_key_file = "/path/to/key_vault.pem"
+      tls_cert_file = "crt_vault.pem"
+      tls_key_file = "key_vault.pem"
     }
 ```
 
 ```
 $ vault server -config=server.conf 
-(vault operator init)
+  (add to /etc/hosts)
+    127.0.0.1 vault.domain.com server.domain.com
+# if needed:
+  $ vault operator init
+$ export export VAULT_ADDR='https://vault.domain.com:8200'
+$ export VAULT_CACERT=`pwd`/CA_crt.pem
+$ export VAULT_TOKEN=<tokenfrominit>
 $ vault  operator unseal
 ```
 
@@ -57,23 +63,25 @@ $ vault  operator unseal
 vault secrets enable pki
 
 vault write pki/config/urls \
-    issuing_certificates="https://grpc.domain.com:8200/v1/pki/ca" \
-    crl_distribution_points="http://grpc.domain.com:8200/v1/pki/crl"
+    issuing_certificates="https://vault.domain.com:8200/v1/pki/ca" \
+    crl_distribution_points="http://vault.domain.com:8200/v1/pki/crl"
 ```
 
 The last command creates the CA and CRL urls at `vault.domain.com`.  Since this is just a test and because i'm sure you don't own `domain.com`, add the following to your `/etc/hosts`
 
 ```
-127.0.0.1  grpc.domain.com server.domain.com
+127.0.0.1  vault.domain.com server.domain.com
 ```
 
->> Note `grpc.domain.com` is the actual Vault server address...the SNI values for `crt_vault.pem` are bound to that...i'm just lazy and didn't reissue the cert...
+>> Note `vault.domain.com` is the actual Vault server address...the SNI values for `crt_vault.pem` are bound to that...i'm just lazy and didn't reissue the cert...
 
 3. Create a CA for a given domain
   In the following, we're creating CA within Vault with CN domain restrions for, you know, `domain.com`
 
   ```
   vault write pki/root/generate/internal  common_name=domain.com  ttl=8760h
+
+  vault write pki/config/urls issuing_certificates="https://vault.domain.com:8200/v1/pki/ca"  crl_distribution_points="https://vault.domain.com:8200/v1/pki/crl"
   ```
 
   Once you initialize the PKI engine, download the CA Vault just generated for you (infact you should see the CA cert cain once you run the previous command)
@@ -82,7 +90,16 @@ The last command creates the CA and CRL urls at `vault.domain.com`.  Since this 
   curl  -s  --cacert CA_crt.pem   https://vault.domain.com:8200/v1/pki/ca  | openssl x509 -inform DER -outform PEM  -out Vault_CA.pem -in  -
   ```
 
-3. Create a Policy for the mTLS Server and Client
+4. Create a Role for the domain
+
+```
+  vault write pki/roles/domain-dot-com \
+    allowed_domains=domain.com \
+    allow_subdomains=true \
+    max_ttl=72h
+```
+
+5. Create a Policy for the mTLS Server and Client
 
 ```
    vault policy write pki-policy-server pki_server.hcl
@@ -92,54 +109,9 @@ The last command creates the CA and CRL urls at `vault.domain.com`.  Since this 
 Where the pki_server creates a certificate with `CN=server.domain.com` and the client with `CN=client.domain.com`
 
 
-- `pki_server.hcl`
-```hcl
-
-path "auth/token/lookup-self" {
-  capabilities = ["read"]
-}
-
-path "auth/token/renew" {
-  capabilities = ["update", "create"]
-}
-
-path "pki/issue/domain-dot-com" {
-    capabilities = ["create", "update", "delete", "list", "read"]
-    allowed_parameters = {
-      "common_name" = ["server.domain.com"]
-  }
-}
-
-path "pki/config/urls" {
-    capabilities = ["read"]
-}
-```
-
-- `pki_client.hcl`
-```
-path "auth/token/lookup-self" {
-  capabilities = ["read"]
-}
-
-path "auth/token/renew" {
-  capabilities = ["update", "create"]
-}
-
-path "pki/issue/domain-dot-com" {
-    capabilities = ["create", "update", "delete", "list", "read"]
-    allowed_parameters = {
-      "common_name" = ["client.domain.com"]
-  }
-}
-
-path "pki/config/urls" {
-    capabilities = ["read"]
-}
-```
-
 You can tune/refine the poicies as needed/necessary (i.,e the pki "read" path isn't ever used)
 
-4. Generate `VAULT_TOKEN` representing the server and client:
+6. Generate `VAULT_TOKEN` representing the server and client:
 
 ```
 $ vault token create -policy=pki-policy-server
@@ -167,16 +139,7 @@ $ vault token create -policy=pki-policy-client
 ```
 
 
-(Optional) Once the tokens are generated, you can check if they're acutally working per policy by running the raw REST api calls
-
-```
-$ curl -s -H "X-Vault-Token: s.IumzeFZVsWqYcJ2IjlGaqZby"  --cacert CA_crt.pem   https://grpc.domain.com:8200/v1/pki/config/urls |  jq '.'
-$ curl -s -H "X-Vault-Token: s.IumzeFZVsWqYcJ2IjlGaqZby"  --cacert CA_crt.pem  --data '{ "common_name": ["server.domain.com"]}' https://grpc.domain.com:8200/v1/pki/issue/domain-dot-com |  jq '.'
-$ curl -s -H "X-Vault-Token: s.BtpHNHEpxaWkEF1ThQKEupwL"  --cacert CA_crt.pem  --data '{ "common_name": ["client.domain.com"]}' https://grpc.domain.com:8200/v1/pki/issue/domain-dot-com |  jq '.'
-```
-
-
-5. Start Server
+7. Start Server
 
 Edit `server/main.go` and add in the `VAULT_TOKEN`
 
@@ -184,17 +147,19 @@ The root path where you run the client and server should also include both the C
 
 ```golang
 	r, err := sal.NewVaultCrypto(&sal.Vault{
-		CertCN:      "grpc.domain.com",
+		CertCN:      "server.domain.com",
 		VaultToken:  "s.IumzeFZVsWqYcJ2IjlGaqZby",
 		VaultPath:   "pki/issue/domain-dot-com",
 		VaultCAcert: "CA_crt.pem",
-		VaultAddr:   "https://grpc.domain.com:8200",
-		ClientCAs:   clientCaCertPool,
-		ClientAuth:  tls.RequireAndVerifyClientCert,
+		VaultAddr:   "https://vault.domain.com:8200",
+		ExtTLSConfig: &tls.Config{
+			ClientCAs:   clientCaCertPool,
+			ClientAuth:  tls.RequireAndVerifyClientCert,
+		},
 	})
 ```
 
-6. Start Client
+8. Start Client
 
 Same thing as above on `client/main.go` but use the client's token
 
@@ -204,7 +169,7 @@ Same thing as above on `client/main.go` but use the client's token
 		VaultToken:  "s.BtpHNHEpxaWkEF1ThQKEupwL",
 		VaultPath:   "pki/issue/domain-dot-com",
 		VaultCAcert: "CA_crt.pem",
-		VaultAddr:   "https://grpc.domain.com:8200",
+		VaultAddr:   "https://vault.domain.com:8200",
 	})
 ```
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -15,11 +16,12 @@ func main() {
 
 	r, err := sal.NewVaultCrypto(&sal.Vault{
 
-		CertCN:      "client.domain.com",
-		VaultToken:  "s.BtpHNHEpxaWkEF1ThQKEupwL",
-		VaultPath:   "pki/issue/domain-dot-com",
-		VaultCAcert: "CA_crt.pem",
-		VaultAddr:   "https://grpc.domain.com:8200",
+		CertCN:       "client.domain.com",
+		VaultToken:   "s.EfcwW5XMh2S8ZBRmjr2ZEm06",
+		VaultPath:    "pki/issue/domain-dot-com",
+		VaultCAcert:  "CA_crt.pem",
+		VaultAddr:    "https://vault.domain.com:8200",
+		ExtTLSConfig: &tls.Config{},
 	})
 	if err != nil {
 		fmt.Printf("Unable to initialize vault crypto: %v", err)
@@ -30,7 +32,7 @@ func main() {
 	}
 	client := &http.Client{Transport: tr}
 
-	resp, err := client.Get("https://grpc.domain.com:8081")
+	resp, err := client.Get("https://server.domain.com:8081")
 	if err != nil {
 		log.Println(err)
 		return
