@@ -50,6 +50,10 @@ $ vault server -config=server.conf
   (add to /etc/hosts)
     127.0.0.1 vault.domain.com server.domain.com
 # if needed:
+
+export VAULT_ADDR='https://vault.domain.com:8200'
+export VAULT_CACERT=/path/to/CA_crt.pem
+
   $ vault operator init
 $ export export VAULT_ADDR='https://vault.domain.com:8200'
 $ export VAULT_CACERT=`pwd`/CA_crt.pem
@@ -83,6 +87,8 @@ The last command creates the CA and CRL urls at `vault.domain.com`.  Since this 
 
   vault write pki/config/urls issuing_certificates="https://vault.domain.com:8200/v1/pki/ca"  crl_distribution_points="https://vault.domain.com:8200/v1/pki/crl"
   ```
+
+  Save the public cert as `Vault_CA.pem` by running the command below:
 
   Once you initialize the PKI engine, download the CA Vault just generated for you (infact you should see the CA cert cain once you run the previous command)
 
@@ -152,9 +158,10 @@ The root path where you run the client and server should also include both the C
 		VaultPath:   "pki/issue/domain-dot-com",
 		VaultCAcert: "CA_crt.pem",
 		VaultAddr:   "https://vault.domain.com:8200",
+		SignatureAlgorithm: x509.SHA256WithRSAPSS,
 		ExtTLSConfig: &tls.Config{
-			ClientCAs:   clientCaCertPool,
-			ClientAuth:  tls.RequireAndVerifyClientCert,
+			ClientCAs:  clientCaCertPool,
+			ClientAuth: tls.RequireAndVerifyClientCert,
 		},
 	})
 ```
@@ -170,6 +177,10 @@ Same thing as above on `client/main.go` but use the client's token
 		VaultPath:   "pki/issue/domain-dot-com",
 		VaultCAcert: "CA_crt.pem",
 		VaultAddr:   "https://vault.domain.com:8200",
+		SignatureAlgorithm: x509.SHA256WithRSAPSS,
+		ExtTLSConfig: &tls.Config{
+			RootCAs: trustCaCertPool,
+		},    
 	})
 ```
 

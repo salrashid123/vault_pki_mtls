@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,14 +15,24 @@ var ()
 
 func main() {
 
-	r, err := sal.NewVaultCrypto(&sal.Vault{
+	trustCaCert, err := ioutil.ReadFile("Vault_CA.pem")
+	if err != nil {
+		fmt.Printf("Unable to initialize vault crypto: %v", err)
+		return
+	}
+	trustCaCertPool := x509.NewCertPool()
+	trustCaCertPool.AppendCertsFromPEM(trustCaCert)
 
-		CertCN:       "client.domain.com",
-		VaultToken:   "s.EfcwW5XMh2S8ZBRmjr2ZEm06",
-		VaultPath:    "pki/issue/domain-dot-com",
-		VaultCAcert:  "CA_crt.pem",
-		VaultAddr:    "https://vault.domain.com:8200",
-		ExtTLSConfig: &tls.Config{},
+	r, err := sal.NewVaultCrypto(&sal.Vault{
+		CertCN:             "client.domain.com",
+		VaultToken:         "s.cQLo4uCVzeF9Zt9pNyMDCCpl",
+		VaultPath:          "pki/issue/domain-dot-com",
+		VaultCAcert:        "CA_crt.pem",
+		VaultAddr:          "https://vault.domain.com:8200",
+		SignatureAlgorithm: x509.SHA256WithRSAPSS,
+		ExtTLSConfig: &tls.Config{
+			RootCAs: trustCaCertPool,
+		},
 	})
 	if err != nil {
 		fmt.Printf("Unable to initialize vault crypto: %v", err)

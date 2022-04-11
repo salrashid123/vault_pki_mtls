@@ -24,51 +24,34 @@ func fronthandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "ok")
 }
 
-func healthhandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("heathcheck...")
-	fmt.Fprint(w, "ok")
-}
-
 func main() {
 
 	clientCaCert, err := ioutil.ReadFile("Vault_CA.pem")
+	if err != nil {
+		fmt.Printf("Could not read vault issued CA: %v", err)
+		return
+	}
 	clientCaCertPool := x509.NewCertPool()
 	clientCaCertPool.AppendCertsFromPEM(clientCaCert)
 
 	r, err := sal.NewVaultCrypto(&sal.Vault{
-		CertCN:      "server.domain.com",
-		VaultToken:  "s.pljYb4ty5AomX6hnzjqrTXiG",
-		VaultPath:   "pki/issue/domain-dot-com",
-		VaultCAcert: "CA_crt.pem",
-		VaultAddr:   "https://vault.domain.com:8200",
+		CertCN:             "server.domain.com",
+		VaultToken:         "s.IsLKcAA96RjEjDGefn6KSsOg",
+		VaultPath:          "pki/issue/domain-dot-com",
+		VaultCAcert:        "CA_crt.pem",
+		VaultAddr:          "https://vault.domain.com:8200",
+		SignatureAlgorithm: x509.SHA256WithRSAPSS,
 		ExtTLSConfig: &tls.Config{
-			ClientCAs:   clientCaCertPool,
-			ClientAuth:  tls.RequireAndVerifyClientCert,
+			ClientCAs:  clientCaCertPool,
+			ClientAuth: tls.RequireAndVerifyClientCert,
 		},
 	})
 	if err != nil {
 		fmt.Printf("Unable to initialize vault crypto: %v", err)
 		return
 	}
-	// ******************************
-
-	// hash := sha256.New()
-	// msg := []byte("foo")
-	// ciphertext, err := rsa.EncryptOAEP(hash, rand.Reader, r.Public().(*rsa.PublicKey), msg, nil)
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// log.Printf("Encrypted Data: %v", base64.StdEncoding.EncodeToString(ciphertext))
-	// plaintext, err := r.Decrypt(rand.Reader, ciphertext, nil)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// log.Printf("Decrypted Data: %v, ", string(plaintext))
-
-	// ******************************
 
 	http.HandleFunc("/", fronthandler)
-	http.HandleFunc("/_ah/health", healthhandler)
 
 	var server *http.Server
 	server = &http.Server{
