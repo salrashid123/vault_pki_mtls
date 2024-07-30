@@ -4,12 +4,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
-	sal "github.com/salrashid123/signer/vault"
+	sal "github.com/salrashid123/vault_pki_mtls/signer"
 	"golang.org/x/net/http2"
 )
 
@@ -26,7 +26,7 @@ func fronthandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	clientCaCert, err := ioutil.ReadFile("Vault_CA.pem")
+	clientCaCert, err := os.ReadFile("certs/Vault_CA.pem")
 	if err != nil {
 		fmt.Printf("Could not read vault issued CA: %v", err)
 		return
@@ -35,11 +35,11 @@ func main() {
 	clientCaCertPool.AppendCertsFromPEM(clientCaCert)
 
 	r, err := sal.NewVaultCrypto(&sal.Vault{
+		VaultToken:         "s.5Nv6F6WKSQl0ycfzhaj1JeCY",
 		CertCN:             "server.domain.com",
-		VaultToken:         "s.IsLKcAA96RjEjDGefn6KSsOg",
-		VaultPath:          "pki/issue/domain-dot-com",
-		VaultCAcert:        "CA_crt.pem",
+		VaultCAcert:        "certs/CA_crt.pem",
 		VaultAddr:          "https://vault.domain.com:8200",
+		VaultPath:          "pki/issue/domain-dot-com",
 		SignatureAlgorithm: x509.SHA256WithRSAPSS,
 		ExtTLSConfig: &tls.Config{
 			ClientCAs:  clientCaCertPool,

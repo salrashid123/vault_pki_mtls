@@ -1,6 +1,8 @@
 
 # mTLS using Hashcorp Vault's PKI Secrets
 
+>> ** NOTE: this repo is archived, not supported (but it works)**
+
 Sample code demonstrating an implementation of [crypto.Signer](https://golang.org/pkg/crypto/#Signer) for `HashiCorp Vault` where the TLS connection certificates are provided by its [PKI Secrets](https://www.vaultproject.io/docs/secrets/pki/index.html) engine.
 
 That is, you can start a golang HTTPS server and client where the certificates are provided by Vault. The client and server will use a provided `VAULT_TOKEN` to acquire the secret.   Vaults' PKI secrets engine allows generates a new PKI Keypair for each authorized call
@@ -45,18 +47,17 @@ If you're still interested in using Vault for a TLS server for any reason...
     }
 ```
 
-```
+```bash
+cd example
 $ vault server -config=server.conf 
   (add to /etc/hosts)
     127.0.0.1 vault.domain.com server.domain.com
 # if needed:
 
 export VAULT_ADDR='https://vault.domain.com:8200'
-export VAULT_CACERT=/path/to/CA_crt.pem
+export VAULT_CACERT=certs/CA_crt.pem
 
-  $ vault operator init
-$ export export VAULT_ADDR='https://vault.domain.com:8200'
-$ export VAULT_CACERT=`pwd`/CA_crt.pem
+$ vault operator init
 $ export VAULT_TOKEN=<tokenfrominit>
 $ vault  operator unseal
 ```
@@ -80,12 +81,13 @@ The last command creates the CA and CRL urls at `vault.domain.com`.  Since this 
 >> Note `vault.domain.com` is the actual Vault server address...the SNI values for `crt_vault.pem` are bound to that...i'm just lazy and didn't reissue the cert...
 
 3. Create a CA for a given domain
-  In the following, we're creating CA within Vault with CN domain restrions for, you know, `domain.com`
+  In the following, we're creating CA within Vault with CN domain restrictions for, you know, `domain.com`
 
-  ```
+  ```bash
   vault write pki/root/generate/internal  common_name=domain.com  ttl=8760h
 
-  vault write pki/config/urls issuing_certificates="https://vault.domain.com:8200/v1/pki/ca"  crl_distribution_points="https://vault.domain.com:8200/v1/pki/crl"
+  vault write pki/config/urls \
+     issuing_certificates="https://vault.domain.com:8200/v1/pki/ca"  crl_distribution_points="https://vault.domain.com:8200/v1/pki/crl"
   ```
 
   Save the public cert as `Vault_CA.pem` by running the command below:
@@ -93,12 +95,12 @@ The last command creates the CA and CRL urls at `vault.domain.com`.  Since this 
   Once you initialize the PKI engine, download the CA Vault just generated for you (infact you should see the CA cert cain once you run the previous command)
 
   ```bash
-  curl  -s  --cacert CA_crt.pem   https://vault.domain.com:8200/v1/pki/ca  | openssl x509 -inform DER -outform PEM  -out Vault_CA.pem -in  -
+  curl  -s  --cacert CA_crt.pem   https://vault.domain.com:8200/v1/pki/ca  | openssl x509 -inform DER -outform PEM  -out certs/Vault_CA.pem 
   ```
 
 4. Create a Role for the domain
 
-```
+```bash
   vault write pki/roles/domain-dot-com \
     allowed_domains=domain.com \
     allow_subdomains=true \
@@ -107,7 +109,7 @@ The last command creates the CA and CRL urls at `vault.domain.com`.  Since this 
 
 5. Create a Policy for the mTLS Server and Client
 
-```
+```bash
    vault policy write pki-policy-server pki_server.hcl
    vault policy write pki-policy-client pki_client.hcl
 ```
@@ -119,7 +121,7 @@ You can tune/refine the poicies as needed/necessary (i.,e the pki "read" path is
 
 6. Generate `VAULT_TOKEN` representing the server and client:
 
-```
+```bash
 $ vault token create -policy=pki-policy-server
 	Key                  Value
 	---                  -----

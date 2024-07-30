@@ -4,18 +4,19 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
+	"os"
 
-	sal "github.com/salrashid123/signer/vault"
+	sal "github.com/salrashid123/vault_pki_mtls/signer"
 )
 
 var ()
 
 func main() {
 
-	trustCaCert, err := ioutil.ReadFile("Vault_CA.pem")
+	trustCaCert, err := os.ReadFile("certs/Vault_CA.pem")
 	if err != nil {
 		fmt.Printf("Unable to initialize vault crypto: %v", err)
 		return
@@ -24,10 +25,10 @@ func main() {
 	trustCaCertPool.AppendCertsFromPEM(trustCaCert)
 
 	r, err := sal.NewVaultCrypto(&sal.Vault{
+		VaultToken:         "s.egwc0xAvSho80sViVhtjGHVM",
 		CertCN:             "client.domain.com",
-		VaultToken:         "s.cQLo4uCVzeF9Zt9pNyMDCCpl",
 		VaultPath:          "pki/issue/domain-dot-com",
-		VaultCAcert:        "CA_crt.pem",
+		VaultCAcert:        "certs/CA_crt.pem",
 		VaultAddr:          "https://vault.domain.com:8200",
 		SignatureAlgorithm: x509.SHA256WithRSAPSS,
 		ExtTLSConfig: &tls.Config{
@@ -52,7 +53,7 @@ func main() {
 		fmt.Printf("Unable to initialize vault crypto: %v", err)
 		return
 	}
-	htmlData, err := ioutil.ReadAll(resp.Body)
+	htmlData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println(err)
 		return
